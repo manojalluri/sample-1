@@ -14,24 +14,25 @@ const MyOrders = () => {
         ? orders.filter(order => order.userId === user.id || order.userEmail === user.email)
         : orders;
 
-    // Separate current and past orders
+    // Separate current and past orders using new 4-stage system
     const currentOrders = userOrders.filter(order =>
-        order.status === 'Placed' || order.status === 'Pending' || order.status === 'Processing' || order.status === 'Shipped'
+        ['Confirmed', 'Packed', 'Shipping', 'Placed', 'Pending', 'Processing'].includes(order.status)
     );
 
     const pastOrders = userOrders.filter(order =>
-        order.status === 'Delivered' || order.status === 'Cancelled'
+        ['Delivered', 'Cancelled'].includes(order.status)
     );
 
     const getStatusColor = (status) => {
         switch (status) {
+            case 'Confirmed':
             case 'Placed':
             case 'Pending':
-                return 'bg-blue-100 text-blue-700';
             case 'Processing':
-                return 'bg-yellow-100 text-yellow-700';
+                return 'bg-blue-100 text-blue-700';
             case 'Packed':
                 return 'bg-indigo-100 text-indigo-700';
+            case 'Shipping':
             case 'Shipped':
                 return 'bg-purple-100 text-purple-700';
             case 'Delivered':
@@ -126,18 +127,64 @@ const MyOrders = () => {
                 </div>
 
                 <div className="p-6 space-y-6">
+                    {/* Modern Tracking Stepper */}
+                    {order.status !== 'Cancelled' && (
+                        <div className="py-8 px-2">
+                            <div className="relative flex justify-between">
+                                {/* Connection Lines */}
+                                <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-100 -translate-y-1/2 rounded-full" />
+                                <div
+                                    className="absolute top-1/2 left-0 h-1 bg-orange-500 -translate-y-1/2 transition-all duration-1000 rounded-full"
+                                    style={{
+                                        width: order.status === 'Confirmed' ? '5%' :
+                                            order.status === 'Packed' ? '33.3%' :
+                                                order.status === 'Shipping' ? '66.6%' :
+                                                    order.status === 'Delivered' ? '100%' : '0%'
+                                    }}
+                                />
+
+                                {[
+                                    { id: 'Confirmed', label: 'Confirmed', icon: Clock },
+                                    { id: 'Packed', label: 'Packed', icon: Package },
+                                    { id: 'Shipping', label: 'Shipping', icon: Package },
+                                    { id: 'Delivered', label: 'Delivered', icon: CheckCircle }
+                                ].map((step, index) => {
+                                    const stages = ['Confirmed', 'Packed', 'Shipping', 'Delivered'];
+                                    const currentIdx = stages.indexOf(order.status);
+                                    const stepIdx = stages.indexOf(step.id);
+                                    const isCompleted = stepIdx < currentIdx || order.status === 'Delivered';
+                                    const isActive = step.id === order.status;
+                                    const StepIcon = step.icon;
+
+                                    return (
+                                        <div key={step.id} className="relative z-10 flex flex-col items-center">
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-4 transition-all duration-500 ${isCompleted || isActive
+                                                    ? 'bg-orange-500 border-orange-100 text-white shadow-lg shadow-orange-200'
+                                                    : 'bg-white border-gray-100 text-gray-300'
+                                                }`}>
+                                                <StepIcon size={18} />
+                                            </div>
+                                            <span className={`text-[10px] font-bold mt-2 uppercase tracking-tighter ${isActive ? 'text-orange-600' : 'text-gray-400'
+                                                }`}>{step.label}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Status & Date */}
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between pt-2">
                         <div>
-                            <p className="text-xs text-[#93959F] uppercase tracking-wider mb-1">Status</p>
-                            <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-bold ${getStatusColor(order.status)}`}>
+                            <p className="text-xs text-[#93959F] uppercase font-black tracking-widest mb-1">Current Status</p>
+                            <span className={`inline-flex items-center gap-1 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wide shadow-sm ${getStatusColor(order.status)}`}>
                                 {getStatusIcon(order.status)}
                                 {order.status}
                             </span>
                         </div>
                         <div className="text-right">
-                            <p className="text-xs text-[#93959F] uppercase tracking-wider mb-1">Placed On</p>
-                            <p className="text-sm font-semibold text-[#1C1C1C]">{formatDate(order.date)}</p>
+                            <p className="text-xs text-[#93959F] uppercase font-black tracking-widest mb-1">Time Log</p>
+                            <p className="text-sm font-bold text-[#1C1C1C]">{formatDate(order.date)}</p>
                         </div>
                     </div>
 

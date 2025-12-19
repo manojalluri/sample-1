@@ -6,7 +6,8 @@ import AdminLayout from './components/admin/AdminLayout';
 import AdminErrorBoundary from './components/admin/AdminErrorBoundary';
 import AdminLoading from './components/admin/AdminLoading';
 import OwnerProtectedRoute from './components/OwnerProtectedRoute';
-import { ShopProvider } from './context/ShopContext';
+import LoadingScreen from './components/LoadingScreen';
+import { ShopProvider, useShop } from './context/ShopContext';
 
 // Lazy load pages for better performance
 const Home = lazy(() => import('./pages/Home'));
@@ -17,6 +18,8 @@ const Checkout = lazy(() => import('./pages/Checkout'));
 const Contact = lazy(() => import('./pages/Contact'));
 const Login = lazy(() => import('./pages/Login'));
 const MyOrders = lazy(() => import('./pages/MyOrders'));
+const OrderConfirmation = lazy(() => import('./pages/OrderConfirmation'));
+const TrackOrder = lazy(() => import('./pages/TrackOrder'));
 
 // Admin pages - with error handling
 const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
@@ -28,6 +31,7 @@ const Inventory = lazy(() => import('./pages/admin/Inventory'));
 const Discounts = lazy(() => import('./pages/admin/Discounts'));
 const Analytics = lazy(() => import('./pages/admin/Analytics'));
 const Settings = lazy(() => import('./pages/admin/Settings'));
+const Tracking = lazy(() => import('./pages/admin/Tracking'));
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -70,16 +74,7 @@ const AdminRoute = ({ children }) => {
 // Public Route Wrapper with Loading
 const PublicRoute = ({ children }) => {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center mx-auto mb-4 animate-pulse">
-            <span className="text-white font-bold text-2xl">G</span>
-          </div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    }>
+    <Suspense fallback={<LoadingScreen />}>
       {children}
     </Suspense>
   );
@@ -89,47 +84,64 @@ const App = () => {
   return (
     <Router>
       <ShopProvider>
-        <ScrollToTop />
-        <Layout>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<PublicRoute><Home /></PublicRoute>} />
-            <Route path="/menu" element={<PublicRoute><Menu /></PublicRoute>} />
-            <Route path="/product/:id" element={<PublicRoute><ProductDetails /></PublicRoute>} />
-            <Route path="/cart" element={<PublicRoute><Cart /></PublicRoute>} />
-            <Route path="/checkout" element={<PublicRoute><Checkout /></PublicRoute>} />
-            <Route path="/contact" element={<PublicRoute><Contact /></PublicRoute>} />
-            <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-            <Route path="/orders" element={<PublicRoute><MyOrders /></PublicRoute>} />
-
-            {/* Admin Login - No Layout */}
-            <Route
-              path="/admin/login"
-              element={
-                <Suspense fallback={<AdminLoading message="Loading login..." />}>
-                  <AdminLogin />
-                </Suspense>
-              }
-            />
-
-            {/* Admin Routes - With Layout & Error Boundary */}
-            <Route path="/admin/dashboard" element={<AdminRoute><Dashboard /></AdminRoute>} />
-            <Route path="/admin/products" element={<AdminRoute><Products /></AdminRoute>} />
-            <Route path="/admin/orders" element={<AdminRoute><Orders /></AdminRoute>} />
-            <Route path="/admin/customers" element={<AdminRoute><Customers /></AdminRoute>} />
-            <Route path="/admin/inventory" element={<AdminRoute><Inventory /></AdminRoute>} />
-            <Route path="/admin/discounts" element={<AdminRoute><Discounts /></AdminRoute>} />
-            <Route path="/admin/analytics" element={<AdminRoute><Analytics /></AdminRoute>} />
-            <Route path="/admin/settings" element={<AdminRoute><Settings /></AdminRoute>} />
-
-            {/* Fallback Routes */}
-            <Route path="/admin/*" element={<Navigate to="/admin/dashboard" replace />} />
-            <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Layout>
+        <AppContent />
       </ShopProvider>
     </Router>
+  );
+};
+
+const AppContent = () => {
+  const { isLoadingAuth } = useShop();
+
+  if (isLoadingAuth) {
+    return <LoadingScreen message="Starting Cutora Fresh..." />;
+  }
+
+  return (
+    <>
+      <ScrollToTop />
+      <Layout>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/" element={<PublicRoute><Home /></PublicRoute>} />
+          <Route path="/menu" element={<PublicRoute><Menu /></PublicRoute>} />
+          <Route path="/product/:id" element={<PublicRoute><ProductDetails /></PublicRoute>} />
+          <Route path="/cart" element={<PublicRoute><Cart /></PublicRoute>} />
+          <Route path="/checkout" element={<PublicRoute><Checkout /></PublicRoute>} />
+          <Route path="/contact" element={<PublicRoute><Contact /></PublicRoute>} />
+          <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+          <Route path="/orders" element={<PublicRoute><MyOrders /></PublicRoute>} />
+          <Route path="/order-confirmation/:orderId" element={<PublicRoute><OrderConfirmation /></PublicRoute>} />
+          <Route path="/track-order" element={<PublicRoute><TrackOrder /></PublicRoute>} />
+
+          {/* Admin Login - No Layout */}
+          <Route
+            path="/admin/login"
+            element={
+              <Suspense fallback={<AdminLoading message="Loading login..." />}>
+                <AdminLogin />
+              </Suspense>
+            }
+          />
+
+          {/* Admin Routes - With Layout & Error Boundary */}
+          <Route path="/admin/dashboard" element={<AdminRoute><Dashboard /></AdminRoute>} />
+          <Route path="/admin/products" element={<AdminRoute><Products /></AdminRoute>} />
+          <Route path="/admin/orders" element={<AdminRoute><Orders /></AdminRoute>} />
+          <Route path="/admin/customers" element={<AdminRoute><Customers /></AdminRoute>} />
+          <Route path="/admin/inventory" element={<AdminRoute><Inventory /></AdminRoute>} />
+          <Route path="/admin/discounts" element={<AdminRoute><Discounts /></AdminRoute>} />
+          <Route path="/admin/analytics" element={<AdminRoute><Analytics /></AdminRoute>} />
+          <Route path="/admin/settings" element={<AdminRoute><Settings /></AdminRoute>} />
+          <Route path="/admin/tracking" element={<AdminRoute><Tracking /></AdminRoute>} />
+
+          {/* Fallback Routes */}
+          <Route path="/admin/*" element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Layout>
+    </>
   );
 };
 

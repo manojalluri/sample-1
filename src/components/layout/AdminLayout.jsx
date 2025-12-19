@@ -10,7 +10,8 @@ import {
     Bell,
     LogOut,
     Menu,
-    X
+    X,
+    Users
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -22,6 +23,7 @@ export const AdminLayout = () => {
     const menuItems = [
         { icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard' },
         { icon: ShoppingBag, label: 'Orders', path: '/admin/orders' },
+        { icon: Users, label: 'Customers', path: '/admin/customers' },
         { icon: Store, label: 'Restaurants', path: '/admin/restaurants' },
         { icon: Package, label: 'Products', path: '/admin/products' },
         { icon: Truck, label: 'Logistics', path: '/admin/logistics' },

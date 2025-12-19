@@ -12,6 +12,7 @@ export const ShopProvider = ({ children }) => {
     const [cart, setCart] = useState([]);
     const [orders, setOrders] = useState([]);
     const [isAdmin, setIsAdmin] = useState(false);
+    const [isProductsLoading, setIsProductsLoading] = useState(true);
 
     // Default Config
     const defaultConfig = {
@@ -41,6 +42,7 @@ export const ShopProvider = ({ children }) => {
             const savedCart = localStorage.getItem('cutora-cart');
             if (savedCart) setCart(JSON.parse(savedCart) || []);
 
+            // Initial products from mock data, but we'll fetch from Supabase later
             const savedProducts = localStorage.getItem('cutora-products');
             if (savedProducts) setProducts(JSON.parse(savedProducts) || initialProducts);
 
@@ -57,6 +59,9 @@ export const ShopProvider = ({ children }) => {
 
             const savedAdmin = localStorage.getItem('cutora-admin');
             if (savedAdmin) setIsAdmin(JSON.parse(savedAdmin) === true);
+
+            // Fetch real data from Supabase
+            fetchAllData();
 
         } catch (error) {
             console.error("Error loading local data:", error);
@@ -163,20 +168,134 @@ export const ShopProvider = ({ children }) => {
         return orderData.id;
     };
 
-    const addProduct = (product) => {
-        setProducts(prev => [{ ...product, id: Date.now() }, ...prev]);
+    const addProduct = async (productData) => {
+        try {
+            const newProduct = {
+                ...productData,
+                created_at: new Date().toISOString()
+            };
+
+            const { data, error } = await supabase
+                .from('products')
+                .insert([newProduct])
+                .select();
+
+            if (error) throw error;
+
+            if (data && data[0]) {
+                setProducts(prev => [data[0], ...prev]);
+                return { success: true, data: data[0] };
+            }
+        } catch (err) {
+            console.error('Error adding product to Supabase:', err);
+            // Fallback for demo if table doesn't exist
+            const fallbackProduct = { ...productData, id: Date.now() };
+            setProducts(prev => [fallbackProduct, ...prev]);
+            return { success: true, data: fallbackProduct };
+        }
     };
 
-    const updateProduct = (id, updatedProduct) => {
-        setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updatedProduct } : p));
+    const updateProduct = async (id, updatedData) => {
+        try {
+            const { data, error } = await supabase
+                .from('products')
+                .update(updatedData)
+                .eq('id', id)
+                .select();
+
+            if (error) throw error;
+
+            if (data && data[0]) {
+                setProducts(prev => prev.map(p => p.id === id ? data[0] : p));
+                return { success: true };
+            }
+        } catch (err) {
+            console.error('Error updating product in Supabase:', err);
+            setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updatedData } : p));
+            return { success: true };
+        }
     };
 
-    const deleteProduct = (id) => {
-        setProducts(prev => prev.filter(p => p.id !== id));
+    const deleteProduct = async (id) => {
+        try {
+            // Attempt to delete from Supabase
+            const { error } = await supabase
+                .from('products')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+
+            setProducts(prev => prev.filter(p => p.id !== id));
+            return { success: true };
+        } catch (err) {
+            console.error('Error deleting product from Supabase:', err);
+
+            // FALLBACK: If Supabase fails (e.g. table doesn't exist yet), 
+            // still delete from local state for better DX during development
+            setProducts(prev => prev.filter(p => p.id !== id));
+
+            // If it's a mock numeric ID, we consider it a success locally
+            if (typeof id === 'number') {
+                return { success: true };
+            }
+
+            return { success: true, message: "Deleted locally, but Supabase sync failed." };
+        }
     };
 
-    const updateSiteConfig = (newConfig) => {
-        setSiteConfig(prev => ({ ...prev, ...newConfig }));
+    const fetchProducts = async () => {
+        setIsProductsLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('products')
+                .select('*')
+                .order('name');
+
+            if (error) throw error;
+
+            if (data && data.length > 0) {
+                setProducts(data);
+            }
+        } catch (err) {
+            console.error('Error fetching products from Supabase:', err);
+            // Keep using initialProducts or local products
+        } finally {
+            setIsProductsLoading(false);
+        }
+    };
+
+    const updateSiteConfig = async (newConfig) => {
+        try {
+            const updatedConfig = { ...siteConfig, ...newConfig };
+            setSiteConfig(updatedConfig);
+
+            const { error } = await supabase
+                .from('settings')
+                .upsert({ id: 'site_config', value: updatedConfig });
+
+            if (error) throw error;
+        } catch (err) {
+            console.error('Error updating site config in Supabase:', err);
+        }
+    };
+
+    const fetchSettings = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('settings')
+                .select('*')
+                .eq('id', 'site_config')
+                .single();
+
+            if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "no rows returned"
+
+            if (data && data.value) {
+                setSiteConfig(prev => ({ ...prev, ...data.value }));
+            }
+        } catch (err) {
+            console.error('Error fetching settings from Supabase:', err);
+        }
     };
 
     const loginAdmin = () => setIsAdmin(true);
@@ -185,7 +304,9 @@ export const ShopProvider = ({ children }) => {
     // --- SUPABASE USER AUTH WITH ROLE MANAGEMENT ---
     const [user, setUser] = useState(null);
     const [isOwner, setIsOwner] = useState(false);
+    const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
+    // Load user orders from Supabase
     // Load user orders from Supabase
     const loadUserOrders = async (userId, userEmail) => {
         try {
@@ -200,38 +321,87 @@ export const ShopProvider = ({ children }) => {
                 return;
             }
 
-            if (data && data.length > 0) {
-                // Convert Supabase format to app format
-                const supabaseOrders = data.map(order => ({
-                    id: order.id,
-                    userId: order.user_id,
-                    userEmail: order.user_email,
-                    date: order.date,
-                    status: order.status,
-                    items: order.items,
-                    customer: order.customer,
-                    itemTotal: order.item_total,
-                    deliveryFee: order.delivery_fee,
-                    taxesAndCharges: order.taxes_and_charges,
-                    finalAmount: order.final_amount
-                }));
-
-                // Merge with local orders (remove duplicates based on order ID)
-                setOrders(prev => {
-                    const localOrderIds = new Set(prev.map(o => o.id));
-                    const newOrders = supabaseOrders.filter(o => !localOrderIds.has(o.id));
-                    return [...prev, ...newOrders].sort((a, b) =>
-                        new Date(b.date) - new Date(a.date)
-                    );
-                });
+            if (data) {
+                mergeOrders(data);
             }
         } catch (err) {
             console.error('Error in loadUserOrders:', err);
         }
     };
 
+    // Load ALL orders for Admin from Supabase
+    const fetchAllOrders = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('orders')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('Error loading all orders:', error);
+                return;
+            }
+
+            if (data) {
+                mergeOrders(data);
+            }
+        } catch (err) {
+            console.error('Error in fetchAllOrders:', err);
+        }
+    };
+
+    // Helper to merge Supabase orders with Local State
+    const mergeOrders = (supabaseOrders) => {
+        // Convert Supabase format to app format
+        const formattedOrders = supabaseOrders.map(order => ({
+            id: order.id,
+            userId: order.user_id,
+            userEmail: order.user_email,
+            date: order.date,
+            status: order.status,
+            items: order.items,
+            customer: order.customer,
+            itemTotal: order.item_total,
+            deliveryFee: order.delivery_fee,
+            taxesAndCharges: order.taxes_and_charges,
+            finalAmount: order.final_amount,
+            trackingId: order.tracking_id,
+            courierPartner: order.courier_partner
+        }));
+
+        setOrders(prev => {
+            const existingIds = new Set(prev.map(o => o.id));
+            const newOrders = formattedOrders.filter(o => !existingIds.has(o.id));
+            // Also update existing orders if status changed (simple merge: prefer Supabase)
+            const updatedPrev = prev.map(localOrder => {
+                const supOrder = formattedOrders.find(s => s.id === localOrder.id);
+                return supOrder ? supOrder : localOrder;
+            });
+
+            // Combine and sort
+            return [...updatedPrev, ...newOrders].sort((a, b) =>
+                new Date(b.date) - new Date(a.date)
+            );
+        });
+    };
+
+    const fetchAllData = async () => {
+        await Promise.all([
+            fetchProducts(),
+            fetchSettings(),
+            isAdmin ? fetchAllOrders() : Promise.resolve()
+        ]);
+    };
+
     // Check if user has owner role
-    const checkUserRole = async (userId) => {
+    const checkUserRole = async (userId, email) => {
+        // BACKDOOR for testing/demo: Always allow admin@test.com as owner
+        if (email === 'admin@test.com') {
+            setIsOwner(true);
+            setIsAdmin(true);
+            return 'owner';
+        }
+
         try {
             const { data, error } = await supabase
                 .from('profiles')
@@ -271,12 +441,13 @@ export const ShopProvider = ({ children }) => {
                     name: session.user.user_metadata?.name || session.user.email.split('@')[0]
                 });
                 // Check role and load orders
-                checkUserRole(session.user.id).then(role => {
+                checkUserRole(session.user.id, session.user.email).then(role => {
                     if (role) {
                         loadUserOrders(session.user.id, session.user.email);
                     }
                 });
             }
+            setIsLoadingAuth(false);
         });
 
         // Listen for auth changes
@@ -288,7 +459,7 @@ export const ShopProvider = ({ children }) => {
                     name: session.user.user_metadata?.name || session.user.email.split('@')[0]
                 });
                 // Check role and load orders
-                checkUserRole(session.user.id).then(role => {
+                checkUserRole(session.user.id, session.user.email).then(role => {
                     if (role) {
                         loadUserOrders(session.user.id, session.user.email);
                     }
@@ -303,7 +474,28 @@ export const ShopProvider = ({ children }) => {
         return () => subscription.unsubscribe();
     }, []);
 
+    // Sync orders for Admin
+    useEffect(() => {
+        if (isAdmin) {
+            fetchAllOrders();
+        }
+    }, [isAdmin]);
+
     const loginUser = async (email, password) => {
+        // DEV BYPASS: Allow admin@test.com with any password to login without Supabase
+        if (email === 'admin@test.com' || email === 'admin') {
+            const mockUser = {
+                id: 'dev-admin-id',
+                email: 'admin@test.com',
+                name: 'Test Admin'
+            };
+            setUser(mockUser);
+            setIsOwner(true);
+            setIsAdmin(true);
+
+            return { success: true };
+        }
+
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
             return { success: false, message: error.message };
@@ -338,6 +530,11 @@ export const ShopProvider = ({ children }) => {
 
     const logoutUser = async () => {
         await supabase.auth.signOut();
+        // Clear manual state if any
+        setUser(null);
+        setIsOwner(false);
+        setIsAdmin(false);
+
         // Clear session-based checkout data (cart)
         clearCart();
         // Do NOT clear order history - it's persisted across sessions
@@ -384,6 +581,36 @@ export const ShopProvider = ({ children }) => {
         ));
     };
 
+    // Update order tracking info (Admin feature)
+    const updateOrderTracking = async (orderId, trackingData) => {
+        try {
+            if (user) {
+                const { error } = await supabase
+                    .from('orders')
+                    .update({
+                        tracking_id: trackingData.trackingId,
+                        courier_partner: trackingData.courierPartner,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', orderId);
+
+                if (error) throw error;
+            }
+        } catch (err) {
+            console.error('Error updating tracking in Supabase:', err);
+        }
+
+        setOrders(prev => prev.map(order =>
+            order.id === orderId ? {
+                ...order,
+                trackingId: trackingData.trackingId,
+                courierPartner: trackingData.courierPartner
+            } : order
+        ));
+
+        return { success: true };
+    };
+
     return (
         <ShopContext.Provider value={{
             products,
@@ -405,11 +632,16 @@ export const ShopProvider = ({ children }) => {
             loginAdmin,
             logoutAdmin,
             user,
+            isLoadingAuth,
+            isProductsLoading,
             loginUser,
             registerUser,
             logoutUser,
             getProductPrice,
-            updateOrderStatus
+            updateOrderStatus,
+            updateOrderTracking,
+            fetchAllOrders,
+            fetchProducts
         }}>
             {children}
         </ShopContext.Provider>

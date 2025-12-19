@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Edit, Trash2, Tag, Percent, DollarSign, Calendar, Toggle, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Plus, Edit, Trash2, Tag, Percent, DollarSign, ToggleRight } from 'lucide-react';
 
 const Discounts = () => {
     const [discounts, setDiscounts] = useState([

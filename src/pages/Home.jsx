@@ -13,8 +13,8 @@ const Home = () => {
         { title: "Sea Fish", img: "/sea_fish.png", link: "/menu?cat=sea" },
         { title: "Fresh Water", img: "/fresh_water.png", link: "/menu?cat=river" },
         { title: "Prawns & Shellfish", img: "/prawns.png", link: "/menu?cat=shellfish" },
-        { title: "Chicken", img: "https://images.unsplash.com/photo-1587593810167-a84920ea0781?auto=format&fit=crop&q=80&w=600", link: "/menu?cat=chicken" },
-        { title: "Mutton", img: "https://images.unsplash.com/photo-1603048297172-c92544798d5e?auto=format&fit=crop&q=80&w=600", link: "/menu?cat=mutton" },
+        { title: "Chicken", img: "/chicken.png", link: "/menu?cat=chicken" },
+        { title: "Mutton", img: "/mutton.png", link: "/menu?cat=mutton" },
     ];
 
     return (

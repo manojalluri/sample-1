@@ -8,7 +8,16 @@ export const products = [
         description: "Freshly caught Seer Fish, known for its delicate texture and amazing taste. Perfect for frying and curries.",
         cuts: ["Uncut", "Cut & Cleaned"],
         stock: true,
-        rating: 4.8
+        rating: 4.8,
+        quantityConfig: {
+            "250g": true,
+            "500g": true,
+            "1kg": true,
+            "custom": true,
+            customMin: 250,
+            customMax: 5000,
+            customStep: 50
+        }
     },
     {
         id: 2,
@@ -92,7 +101,7 @@ export const products = [
         name: "Premium Chicken Curry Cut (Skinless)",
         category: "Chicken",
         price: 240,
-        image: "https://images.unsplash.com/photo-1587593810167-a84920ea0781?auto=format&fit=crop&q=80&w=600",
+        image: "/chicken.png",
         description: "Tender, antibiotic-free chicken cuts perfect for curries. Hygienically processed and packed.",
         cuts: ["Uncut", "Cut & Cleaned"],
         stock: true,
@@ -103,7 +112,7 @@ export const products = [
         name: "Chicken Breast (Boneless)",
         category: "Chicken",
         price: 320,
-        image: "https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&fit=crop&q=80&w=600",
+        image: "/chicken.png",
         description: "Juicy, high-protein boneless chicken breast. Ideal for grilling, salads, and healthy meals.",
         cuts: ["Uncut", "Cut & Cleaned"],
         stock: true,
@@ -114,7 +123,7 @@ export const products = [
         name: "Fresh Mutton Curry Cut",
         category: "Mutton",
         price: 850,
-        image: "https://images.unsplash.com/photo-1603048297172-c92544798d5e?auto=format&fit=crop&q=80&w=600",
+        image: "/mutton.png",
         description: "Premium quality tender mutton pieces including bone-in cuts. Perfect for rich gravies.",
         cuts: ["Uncut", "Cut & Cleaned"],
         stock: true,
@@ -125,7 +134,7 @@ export const products = [
         name: "Mutton Chops (Ribs)",
         category: "Mutton",
         price: 950,
-        image: "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&q=80&w=600",
+        image: "/mutton.png",
         description: "Flavorful mutton chops, best suited for tandoori, frying, or roasting.",
         cuts: ["Uncut", "Cut & Cleaned"],
         stock: true,

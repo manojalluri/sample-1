@@ -1,85 +1,51 @@
 import React, { useState } from 'react';
 import { Search, Filter, Eye, Mail, Phone, MapPin, ShoppingBag, DollarSign, Users } from 'lucide-react';
+import { useShop } from '../../context/ShopContext';
 
 const Customers = () => {
+    const { orders } = useShop();
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCustomer, setSelectedCustomer] = useState(null);
 
-    const customers = [
-        {
-            id: 1,
-            name: 'Rajesh Kumar',
-            email: 'rajesh@example.com',
-            phone: '+91 98765 43210',
-            address: '123 MG Road, Bangalore, Karnataka - 560001',
-            totalOrders: 28,
-            totalSpend: 38450,
-            lastOrder: '2024-12-17',
-            status: 'Active',
-            orders: [
-                { id: '#1234', date: '2024-12-17', items: 'Goat Curry Cut, Chicken Breast', total: 980, status: 'Pending' },
-                { id: '#1198', date: '2024-12-14', items: 'Mutton Chops', total: 1200, status: 'Delivered' },
-                { id: '#1156', date: '2024-12-10', items: 'Fish Fillet', total: 450, status: 'Delivered' }
-            ]
-        },
-        {
-            id: 2,
-            name: 'Priya Sharma',
-            email: 'priya@example.com',
-            phone: '+91 98765 43211',
-            address: '456 Park Street, Kolkata, West Bengal - 700016',
-            totalOrders: 15,
-            totalSpend: 22300,
-            lastOrder: '2024-12-17',
-            status: 'Active',
-            orders: [
-                { id: '#1233', date: '2024-12-17', items: 'Mutton Curry Cut', total: 1500, status: 'Packed' },
-                { id: '#1189', date: '2024-12-12', items: 'Chicken Wings', total: 680, status: 'Delivered' }
-            ]
-        },
-        {
-            id: 3,
-            name: 'Amit Patel',
-            email: 'amit@example.com',
-            phone: '+91 98765 43212',
-            address: '789 Nehru Nagar, Mumbai, Maharashtra - 400001',
-            totalOrders: 42,
-            totalSpend: 56780,
-            lastOrder: '2024-12-17',
-            status: 'Active',
-            orders: [
-                { id: '#1232', date: '2024-12-17', items: 'Chicken Breast', total: 310, status: 'Shipped' }
-            ]
-        },
-        {
-            id: 4,
-            name: 'Sneha Reddy',
-            email: 'sneha@example.com',
-            phone: '+91 98765 43213',
-            address: '321 Beach Road, Chennai, Tamil Nadu - 600001',
-            totalOrders: 8,
-            totalSpend: 9250,
-            lastOrder: '2024-12-16',
-            status: 'Active',
-            orders: [
-                { id: '#1231', date: '2024-12-16', items: 'Fish Fillet, Prawns', total: 635, status: 'Delivered' }
-            ]
-        },
-        {
-            id: 5,
-            name: 'Vikram Singh',
-            email: 'vikram@example.com',
-            phone: '+91 98765 43214',
-            address: '654 Lake View, Hyderabad, Telangana - 500001',
-            totalOrders: 3,
-            totalSpend: 1850,
-            lastOrder: '2024-12-16',
-            status: 'Inactive',
-            orders: [
-                { id: '#1230', date: '2024-12-16', items: 'Goat Liver', total: 310, status: 'Pending' }
-            ]
+    // Derive unique customers from orders
+    const customerMap = orders.reduce((acc, order) => {
+        const key = order.customer?.phone || order.userEmail || 'Guest';
+        if (!acc[key]) {
+            acc[key] = {
+                id: key,
+                name: order.customer?.name || 'Guest Customer',
+                email: order.userEmail || order.customer?.email || 'N/A',
+                phone: order.customer?.phone || 'N/A',
+                address: `${order.customer?.address || ''}, ${order.customer?.city || ''}`,
+                totalOrders: 0,
+                totalSpend: 0,
+                lastOrder: order.date,
+                status: 'Active',
+                orders: []
+            };
         }
-    ];
+        acc[key].totalOrders += 1;
+        acc[key].totalSpend += (order.finalAmount || 0);
+        acc[key].orders.push({
+            id: order.id,
+            date: new Date(order.date).toLocaleDateString(),
+            items: order.items.map(i => i.name).join(', '),
+            total: order.finalAmount,
+            status: order.status
+        });
+        if (new Date(order.date) > new Date(acc[key].lastOrder)) {
+            acc[key].lastOrder = order.date;
+        }
+        return acc;
+    }, {});
+
+    const customersList = Object.values(customerMap).filter(customer =>
+        customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        customer.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        customer.phone.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const totalRevenue = orders.reduce((sum, o) => sum + (o.finalAmount || 0), 0);
 
     return (
         <div className="p-6">
@@ -95,7 +61,7 @@ const Customers = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm text-gray-500 font-medium">Total Customers</p>
-                            <p className="text-2xl font-bold text-gray-900 mt-1">1,249</p>
+                            <p className="text-2xl font-bold text-gray-900 mt-1">{Object.keys(customerMap).length}</p>
                         </div>
                         <div className="w-12 h-12 bg-purple-50 rounded-lg flex items-center justify-center">
                             <Users className="w-6 h-6 text-purple-600" />
@@ -105,8 +71,8 @@ const Customers = () => {
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-gray-500 font-medium">Active Customers</p>
-                            <p className="text-2xl font-bold text-gray-900 mt-1">987</p>
+                            <p className="text-sm text-gray-500 font-medium">Customer Orders</p>
+                            <p className="text-2xl font-bold text-gray-900 mt-1">{orders.length}</p>
                         </div>
                         <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center">
                             <ShoppingBag className="w-6 h-6 text-green-600" />
@@ -117,7 +83,7 @@ const Customers = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm text-gray-500 font-medium">Total Revenue</p>
-                            <p className="text-2xl font-bold text-gray-900 mt-1">₹12.8L</p>
+                            <p className="text-2xl font-bold text-gray-900 mt-1">₹{totalRevenue.toLocaleString()}</p>
                         </div>
                         <div className="w-12 h-12 bg-orange-50 rounded-lg flex items-center justify-center">
                             <DollarSign className="w-6 h-6 text-orange-600" />
@@ -132,10 +98,10 @@ const Customers = () => {
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                     <input
                         type="text"
-                        placeholder="Search customers by name, email, or phone..."
+                        placeholder="Search by name, email, or phone..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
                     />
                 </div>
             </div>
@@ -143,20 +109,20 @@ const Customers = () => {
             {/* Customers Table */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full">
+                    {/* Desktop View Table */}
+                    <table className="w-full hidden md:table">
                         <thead className="bg-gray-50 border-b border-gray-200">
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Orders</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Spend</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Orders</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Spend</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Order</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                            {customers.map((customer) => (
+                            {customersList.map((customer) => (
                                 <tr key={customer.id} className="hover:bg-gray-50">
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center">
@@ -166,8 +132,8 @@ const Customers = () => {
                                                 </span>
                                             </div>
                                             <div className="ml-3">
-                                                <div className="text-sm font-medium text-gray-900">{customer.name}</div>
-                                                <div className="text-xs text-gray-500">ID: #{customer.id}</div>
+                                                <div className="text-sm font-bold text-gray-900">{customer.name}</div>
+                                                <div className="text-[10px] text-gray-400 font-mono">{customer.id.length > 20 ? customer.id.substring(0, 10) + '...' : customer.id}</div>
                                             </div>
                                         </div>
                                     </td>
@@ -176,43 +142,52 @@ const Customers = () => {
                                         <div className="text-xs text-gray-500">{customer.phone}</div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{customer.totalOrders}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">₹{customer.totalSpend.toLocaleString()}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{customer.lastOrder}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className={`inline-flex text-xs px-2.5 py-1 rounded-full font-medium ${customer.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                                            }`}>
-                                            {customer.status}
-                                        </span>
-                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-gray-900">₹{customer.totalSpend.toLocaleString()}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{new Date(customer.lastOrder).toLocaleDateString()}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right">
                                         <button
                                             onClick={() => setSelectedCustomer(customer)}
-                                            className="inline-flex items-center px-3 py-1.5 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors text-sm font-medium"
+                                            className="inline-flex items-center px-3 py-1.5 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-600 hover:text-white transition-all text-xs font-bold uppercase tracking-wider"
                                         >
                                             <Eye className="w-4 h-4 mr-1" />
-                                            View
+                                            View Profile
                                         </button>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
+
+                    {/* Mobile View Card List */}
+                    <div className="md:hidden divide-y divide-gray-200">
+                        {customersList.map((customer) => (
+                            <div key={customer.id} className="p-4 bg-white hover:bg-gray-50 flex items-center justify-between">
+                                <div className="flex items-center">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-orange-600 rounded-full flex items-center justify-center mr-3">
+                                        <span className="text-white font-bold text-sm">
+                                            {customer.name.split(' ').map(n => n[0]).join('')}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-bold text-gray-900">{customer.name}</p>
+                                        <p className="text-xs text-gray-500">{customer.phone}</p>
+                                        <p className="text-[10px] text-orange-600 font-bold mt-1 uppercase">₹{customer.totalSpend.toLocaleString()} • {customer.totalOrders} Orders</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setSelectedCustomer(customer)}
+                                    className="p-2 bg-orange-50 text-orange-600 rounded-full"
+                                >
+                                    <Eye className="w-5 h-5" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
                 </div>
 
-                {/* Pagination */}
+                {/* Pagination Placeholder */}
                 <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-                    <p className="text-sm text-gray-500">Showing 1 to 5 of 5 customers</p>
-                    <div className="flex space-x-2">
-                        <button className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50" disabled>
-                            Previous
-                        </button>
-                        <button className="px-3 py-1 bg-orange-600 text-white rounded-lg text-sm hover:bg-orange-700">
-                            1
-                        </button>
-                        <button className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50" disabled>
-                            Next
-                        </button>
-                    </div>
+                    <p className="text-sm text-gray-500 font-medium">Showing {customersList.length} customers</p>
                 </div>
             </div>
 

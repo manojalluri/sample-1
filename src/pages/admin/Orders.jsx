@@ -1,25 +1,56 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Search, Filter, Eye, ChevronDown, Package } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { Search, Filter, Eye, ChevronDown, Package, RefreshCcw } from 'lucide-react';
 import { useShop } from '../../context/ShopContext';
 
 const Orders = () => {
-    const { orders, updateOrderStatus } = useShop();
+    const { orders, updateOrderStatus, fetchAllOrders } = useShop();
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState('All');
     const [selectedOrder, setSelectedOrder] = useState(null);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const location = useLocation();
 
-    const statuses = ['All', 'Pending', 'Processing', 'Packed', 'Shipped', 'Delivered', 'Cancelled'];
+    useEffect(() => {
+        if (location.state?.selectedOrderId && orders.length > 0) {
+            const order = orders.find(o => o.id === location.state.selectedOrderId);
+            if (order) setSelectedOrder(order);
+        }
+    }, [location.state, orders]);
+
+    useEffect(() => {
+        // Initial fetch
+        if (fetchAllOrders) fetchAllOrders();
+
+        // Poll every 30 seconds
+        const interval = setInterval(() => {
+            if (fetchAllOrders) fetchAllOrders();
+        }, 30000);
+
+        return () => clearInterval(interval);
+    }, [fetchAllOrders]);
+
+    const handleRefresh = async () => {
+        if (fetchAllOrders) {
+            setIsRefreshing(true);
+            await fetchAllOrders();
+            setTimeout(() => setIsRefreshing(false), 500);
+        }
+    };
+
+    const statuses = ['All', 'Confirmed', 'Packed', 'Shipping', 'Delivered', 'Cancelled'];
 
     const getStatusColor = (status) => {
         const colors = {
-            Pending: 'bg-yellow-100 text-yellow-700',
-            Processing: 'bg-blue-100 text-blue-700',
-            Packed: 'bg-indigo-100 text-indigo-700',
-            Shipped: 'bg-purple-100 text-purple-700',
-            Delivered: 'bg-green-100 text-green-700',
-            Cancelled: 'bg-red-100 text-red-700',
-            Placed: 'bg-yellow-100 text-yellow-700'
+            'Confirmed': 'bg-blue-100 text-blue-700',
+            'Packed': 'bg-indigo-100 text-indigo-700',
+            'Shipping': 'bg-purple-100 text-purple-700',
+            'Delivered': 'bg-green-100 text-green-700',
+            'Cancelled': 'bg-red-100 text-red-700',
+            'Pending': 'bg-yellow-100 text-yellow-700',
+            'Processing': 'bg-blue-100 text-blue-700',
+            'Shipped': 'bg-purple-100 text-purple-700',
+            'Placed': 'bg-yellow-100 text-yellow-700'
         };
         return colors[status] || 'bg-gray-100 text-gray-700';
     };
@@ -63,36 +94,45 @@ const Orders = () => {
     return (
         <div className="p-6">
             {/* Header */}
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
-                <p className="text-gray-500 mt-1">Manage and track all customer orders ({orders.length} total)</p>
+            <div className="mb-6 flex justify-between items-end">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
+                    <p className="text-gray-500 mt-1">Manage and track all customer orders ({orders.length} total)</p>
+                </div>
+                <button
+                    onClick={handleRefresh}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors text-sm font-medium"
+                >
+                    <RefreshCcw size={16} className={isRefreshing ? "animate-spin" : ""} />
+                    Refresh
+                </button>
             </div>
 
             {/* Filters */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex flex-col md:flex-row gap-4">
                     {/* Search */}
-                    <div className="relative">
+                    <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                         <input
                             type="text"
-                            placeholder="Search by order ID, customer name, or phone..."
+                            placeholder="Search by ID, name, or phone..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
                         />
                     </div>
 
                     {/* Status Filter */}
-                    <div className="relative">
+                    <div className="relative w-full md:w-64">
                         <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                         <select
                             value={filterStatus}
                             onChange={(e) => setFilterStatus(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 appearance-none"
+                            className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 appearance-none text-sm bg-white"
                         >
                             {statuses.map(status => (
-                                <option key={status} value={status}>{status} Orders</option>
+                                <option key={status} value={status}>{status === 'All' ? 'All Orders' : `${status} Orders`}</option>
                             ))}
                         </select>
                         <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
@@ -114,7 +154,8 @@ const Orders = () => {
             ) : (
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="w-full">
+                        {/* Desktop View Table */}
+                        <table className="w-full hidden md:table">
                             <thead className="bg-gray-50 border-b border-gray-200">
                                 <tr>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order</th>
@@ -161,14 +202,17 @@ const Orders = () => {
                                             <select
                                                 value={order.status}
                                                 onChange={(e) => handleStatusUpdate(order.id, e.target.value)}
-                                                className={`text-xs px-2.5 py-1.5 rounded-full font-medium border-0 focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer ${getStatusColor(order.status)}`}
+                                                className={`text-xs px-2.5 py-1.5 rounded-full font-bold border-0 focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer shadow-sm ${getStatusColor(order.status)}`}
                                             >
-                                                <option value="Pending">Pending</option>
-                                                <option value="Processing">Processing</option>
+                                                <option value="Confirmed">Confirmed</option>
                                                 <option value="Packed">Packed</option>
-                                                <option value="Shipped">Shipped</option>
+                                                <option value="Shipping">Shipping</option>
                                                 <option value="Delivered">Delivered</option>
                                                 <option value="Cancelled">Cancelled</option>
+                                                {/* Compatibility fallbacks */}
+                                                {!['Confirmed', 'Packed', 'Shipping', 'Delivered', 'Cancelled'].includes(order.status) && (
+                                                    <option value={order.status}>{order.status}</option>
+                                                )}
                                             </select>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right">
@@ -184,6 +228,45 @@ const Orders = () => {
                                 ))}
                             </tbody>
                         </table>
+
+                        {/* Mobile View Cards */}
+                        <div className="md:hidden divide-y divide-gray-200">
+                            {filteredOrders.map((order) => (
+                                <div key={order.id} className="p-4 bg-white hover:bg-gray-50">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div>
+                                            <div className="text-sm font-bold text-gray-900 font-mono">{order.id}</div>
+                                            <div className="text-xs text-gray-500">{formatDate(order.date)}</div>
+                                        </div>
+                                        <select
+                                            value={order.status}
+                                            onChange={(e) => handleStatusUpdate(order.id, e.target.value)}
+                                            className={`text-[10px] px-2 py-1 rounded-full font-bold border-0 focus:outline-none shadow-sm ${getStatusColor(order.status)}`}
+                                        >
+                                            <option value="Confirmed">Confirmed</option>
+                                            <option value="Packed">Packed</option>
+                                            <option value="Shipping">Shipping</option>
+                                            <option value="Delivered">Delivered</option>
+                                            <option value="Cancelled">Cancelled</option>
+                                        </select>
+                                    </div>
+                                    <div className="flex justify-between items-end">
+                                        <div className="text-sm">
+                                            <p className="font-medium text-gray-800">{order.customer?.name || 'Guest'}</p>
+                                            <p className="text-xs text-gray-500 line-clamp-1">
+                                                {order.items.length} items • ₹{order.finalAmount}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => setSelectedOrder(order)}
+                                            className="text-orange-600 font-bold text-xs uppercase tracking-wider bg-orange-50 px-3 py-1.5 rounded-lg"
+                                        >
+                                            Details
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
 
                     {/* Pagination Info */}
@@ -231,7 +314,13 @@ const Orders = () => {
                                     {selectedOrder.items && selectedOrder.items.map((item, idx) => (
                                         <div key={idx} className="flex items-center justify-between p-4 border-b border-gray-200 last:border-0">
                                             <div className="flex items-center">
-                                                <Package className="w-10 h-10 text-gray-400 mr-3" />
+                                                <div className="w-12 h-12 bg-gray-50 rounded-lg overflow-hidden border border-gray-200 flex items-center justify-center mr-3">
+                                                    {item.image ? (
+                                                        <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <Package className="w-6 h-6 text-gray-400" />
+                                                    )}
+                                                </div>
                                                 <div>
                                                     <p className="text-sm font-medium text-gray-900">{item.name}</p>
                                                     <p className="text-xs text-gray-500">
@@ -274,12 +363,11 @@ const Orders = () => {
                                 <select
                                     value={selectedOrder.status}
                                     onChange={(e) => handleStatusUpdate(selectedOrder.id, e.target.value)}
-                                    className={`w-full px-4 py-2 rounded-lg font-medium border-2 focus:outline-none focus:ring-2 focus:ring-orange-500 ${getStatusColor(selectedOrder.status)}`}
+                                    className={`w-full px-4 py-3 rounded-xl font-bold border-2 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all ${getStatusColor(selectedOrder.status)}`}
                                 >
-                                    <option value="Pending">Pending</option>
-                                    <option value="Processing">Processing</option>
+                                    <option value="Confirmed">Confirmed</option>
                                     <option value="Packed">Packed</option>
-                                    <option value="Shipped">Shipped</option>
+                                    <option value="Shipping">Shipping</option>
                                     <option value="Delivered">Delivered</option>
                                     <option value="Cancelled">Cancelled</option>
                                 </select>

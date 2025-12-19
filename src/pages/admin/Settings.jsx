@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Store, MapPin, Phone, Mail, DollarSign, Percent, CreditCard, Save, Users, Shield } from 'lucide-react';
+import { useShop } from '../../context/ShopContext';
 
 const Settings = () => {
+    const { siteConfig, updateSiteConfig } = useShop();
     const [activeTab, setActiveTab] = useState('store');
     const [storeSettings, setStoreSettings] = useState({
         name: 'GODACUT',
@@ -17,6 +19,12 @@ const Settings = () => {
         cuttingCharge: 15,
         cuttingEnabled: true
     });
+
+    useEffect(() => {
+        if (siteConfig) {
+            setStoreSettings(prev => ({ ...prev, ...siteConfig }));
+        }
+    }, [siteConfig]);
 
     const [paymentMethods, setPaymentMethods] = useState([
         { id: 1, name: 'Cash on Delivery', enabled: true },
@@ -52,8 +60,13 @@ const Settings = () => {
         }
     ]);
 
-    const handleSaveStoreSettings = () => {
-        alert('Store settings saved successfully!');
+    const handleSaveStoreSettings = async () => {
+        const result = await updateSiteConfig(storeSettings);
+        if (result.success) {
+            alert('Store settings saved successfully!');
+        } else {
+            alert('Failed to save settings: ' + result.error);
+        }
     };
 
     const togglePaymentMethod = (id) => {

@@ -3,10 +3,10 @@ import { Navigate } from 'react-router-dom';
 import { useShop } from '../context/ShopContext';
 
 const OwnerProtectedRoute = ({ children }) => {
-    const { user, isOwner } = useShop();
+    const { user, isOwner, isLoadingAuth } = useShop();
 
     // Show loading state while checking auth
-    if (user === null) {
+    if (isLoadingAuth) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
                 <div className="text-center">

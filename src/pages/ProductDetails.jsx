@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Star, ShoppingBag, Truck, ShieldCheck } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
@@ -8,22 +8,79 @@ const ProductDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const { products, addToCart, storeSettings, getProductPrice } = useShop();
-    const product = products.find(p => p.id === parseInt(id));
+    const product = products.find(p => String(p.id) === String(id));
 
     const [selectedCut, setSelectedCut] = useState(product ? product.cuts[0] : '');
-    const [quantity, setQuantity] = useState(1);
+    const [quantityType, setQuantityType] = useState('1kg'); // '250g', '500g', '1kg', 'custom'
+    const [customWeight, setCustomWeight] = useState(250);
+    const [quantity, setQuantity] = useState(1); // Number of units (e.g., 2 units of 250g)
+
+    // Auto-select custom when weight > 1kg
+    useEffect(() => {
+        // Find configuration for the product
+        const defaultQuantityConfig = {
+            "250g": true,
+            "500g": true,
+            "1kg": true,
+            "custom": true,
+            customMin: 250,
+            customMax: 1000000, // Effectively no limit (1000kg)
+            customStep: 50
+        };
+        const activeConfig = product?.quantityConfig || defaultQuantityConfig;
+
+        if (!activeConfig.custom || quantityType === 'custom') return;
+
+        let baseWeight = 1;
+        if (quantityType === '250g') baseWeight = 0.25;
+        else if (quantityType === '500g') baseWeight = 0.5;
+        else if (quantityType === '1kg') baseWeight = 1;
+
+        const totalWeightInKg = baseWeight * quantity;
+        if (totalWeightInKg > 1) {
+            setQuantityType('custom');
+            setCustomWeight(Math.min(totalWeightInKg * 1000, activeConfig.customMax || 5000));
+            setQuantity(1);
+        }
+    }, [quantity, quantityType, product]);
+
+    // Get default quantity config if not set
+    const defaultQuantityConfig = {
+        "250g": true,
+        "500g": true,
+        "1kg": true,
+        "custom": true,
+        customMin: 250,
+        customMax: 1000000, // Effectively no limit (1000kg)
+        customStep: 50
+    };
+
+    const quantityConfig = product?.quantityConfig || defaultQuantityConfig;
 
     if (!product) {
         return <div className="min-h-screen grid place-items-center">Product not found</div>;
     }
 
+    // Get weight in kg based on quantity type
+    const getWeightInKg = () => {
+        if (quantityType === '250g') return 0.25;
+        if (quantityType === '500g') return 0.5;
+        if (quantityType === '1kg') return 1;
+        if (quantityType === 'custom') return customWeight / 1000;
+        return 1;
+    };
+
+    const weightInKg = getWeightInKg();
+    const totalWeight = weightInKg * quantity;
+
     const handleAddToCart = () => {
-        addToCart(product, quantity, selectedCut);
-        // Maybe show toast here
+        // Add to cart with total weight
+        addToCart({ ...product, quantityInKg: weightInKg }, quantity, selectedCut);
     };
 
     // Calculate price based on selected preparation type
     const currentPrice = getProductPrice(product.price, selectedCut);
+    const itemTotal = currentPrice * weightInKg * quantity;
 
     // Calculate breakdown for Cut & Clean
     const getPriceBreakdown = (preparationType) => {
@@ -67,12 +124,12 @@ const ProductDetails = () => {
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                     {/* Image Side */}
-                    <FadeIn className="bg-white rounded-3xl p-8 flex items-center justify-center border border-gray-100 shadow-sm relative overflow-hidden group">
+                    <FadeIn className="bg-white rounded-3xl p-4 flex items-center justify-center border border-gray-100 shadow-sm relative overflow-hidden group h-fit">
                         <div className="absolute inset-0 bg-radial-gradient from-orange-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                         <img
                             src={product.image}
                             alt={product.name}
-                            className="w-full max-h-[500px] object-contain drop-shadow-2xl hover:scale-105 transition-transform duration-500 relative z-10"
+                            className="w-full max-h-[350px] object-contain drop-shadow-2xl hover:scale-105 transition-transform duration-500 relative z-10"
                         />
                     </FadeIn>
 
@@ -82,9 +139,6 @@ const ProductDetails = () => {
                             <div className="flex items-center gap-3 mb-4">
                                 <span className="px-3 py-1 bg-[#2ECC71]/10 text-[#2ECC71] text-xs font-extrabold uppercase rounded-md tracking-wider border border-[#2ECC71]/20">
                                     {product.category}
-                                </span>
-                                <span className="flex items-center text-yellow-500 text-sm font-bold">
-                                    <Star size={16} className="fill-current mr-1" /> {product.rating} (120+ reviews)
                                 </span>
                             </div>
                             <h1 className="text-4xl md:text-5xl font-extrabold text-[#1C1C1C] mb-4 tracking-tight">{product.name}</h1>
@@ -104,8 +158,8 @@ const ProductDetails = () => {
                                             key={cut}
                                             onClick={() => setSelectedCut(cut)}
                                             className={`p-4 rounded-xl border-2 text-left transition-all ${isSelected
-                                                    ? 'border-[#FC8019] bg-[#FC8019]/5 shadow-md ring-2 ring-[#FC8019]/20'
-                                                    : 'border-gray-200 bg-white hover:border-gray-400'
+                                                ? 'border-[#FC8019] bg-[#FC8019]/5 shadow-md ring-2 ring-[#FC8019]/20'
+                                                : 'border-gray-200 bg-white hover:border-gray-400'
                                                 }`}
                                         >
                                             <div className="flex items-center justify-between mb-2">
@@ -140,10 +194,150 @@ const ProductDetails = () => {
                             </div>
                         </div>
 
+                        {/* QUANTITY SELECTION */}
+                        <div className="space-y-4">
+                            <label className="text-xs font-extrabold text-[#93959F] uppercase tracking-widest">SELECT QUANTITY</label>
+                            <div className="grid grid-cols-2 gap-3">
+                                {/* 250g Option */}
+                                {quantityConfig["250g"] ? (
+                                    <button
+                                        onClick={() => setQuantityType('250g')}
+                                        className={`p-4 rounded-xl border-2 text-left transition-all ${quantityType === '250g'
+                                            ? 'border-[#FC8019] bg-[#FC8019]/5 shadow-md ring-2 ring-[#FC8019]/20'
+                                            : 'border-gray-200 bg-white hover:border-gray-400'
+                                            }`}
+                                    >
+                                        <div className="flex flex-col">
+                                            <span className={`text-lg font-bold ${quantityType === '250g' ? 'text-[#FC8019]' : 'text-[#1C1C1C]'}`}>250g</span>
+                                            <span className={`text-sm font-bold ${quantityType === '250g' ? 'text-[#FC8019]' : 'text-[#60646C]'}`}>₹{Math.round(currentPrice * 0.25)}</span>
+                                        </div>
+                                    </button>
+                                ) : (
+                                    <div className="p-4 rounded-xl border-2 border-gray-200 bg-gray-50 text-left opacity-60">
+                                        <div className="text-lg font-bold text-gray-400">250g</div>
+                                        <div className="text-[10px] text-red-500 font-bold uppercase">Unavailable</div>
+                                    </div>
+                                )}
+
+                                {/* 500g Option */}
+                                {quantityConfig["500g"] ? (
+                                    <button
+                                        onClick={() => setQuantityType('500g')}
+                                        className={`p-4 rounded-xl border-2 text-left transition-all ${quantityType === '500g'
+                                            ? 'border-[#FC8019] bg-[#FC8019]/5 shadow-md ring-2 ring-[#FC8019]/20'
+                                            : 'border-gray-200 bg-white hover:border-gray-400'
+                                            }`}
+                                    >
+                                        <div className="flex flex-col">
+                                            <span className={`text-lg font-bold ${quantityType === '500g' ? 'text-[#FC8019]' : 'text-[#1C1C1C]'}`}>500g</span>
+                                            <span className={`text-sm font-bold ${quantityType === '500g' ? 'text-[#FC8019]' : 'text-[#60646C]'}`}>₹{Math.round(currentPrice * 0.5)}</span>
+                                        </div>
+                                    </button>
+                                ) : (
+                                    <div className="p-4 rounded-xl border-2 border-gray-200 bg-gray-50 text-left opacity-60">
+                                        <div className="text-lg font-bold text-gray-400">500g</div>
+                                        <div className="text-[10px] text-red-500 font-bold uppercase">Unavailable</div>
+                                    </div>
+                                )}
+
+                                {/* 1kg Option (Now in row 2) */}
+                                {quantityConfig["1kg"] ? (
+                                    <button
+                                        onClick={() => setQuantityType('1kg')}
+                                        className={`p-4 rounded-xl border-2 text-left transition-all ${quantityType === '1kg'
+                                            ? 'border-[#FC8019] bg-[#FC8019]/5 shadow-md ring-2 ring-[#FC8019]/20'
+                                            : 'border-gray-200 bg-white hover:border-gray-400'
+                                            }`}
+                                    >
+                                        <div className="flex flex-col">
+                                            <span className={`text-lg font-bold ${quantityType === '1kg' ? 'text-[#FC8019]' : 'text-[#1C1C1C]'}`}>1kg</span>
+                                            <span className={`text-sm font-bold ${quantityType === '1kg' ? 'text-[#FC8019]' : 'text-[#60646C]'}`}>₹{currentPrice}</span>
+                                        </div>
+                                    </button>
+                                ) : (
+                                    <div className="p-4 rounded-xl border-2 border-gray-200 bg-gray-50 text-left opacity-60">
+                                        <div className="text-lg font-bold text-gray-400">1kg</div>
+                                        <div className="text-[10px] text-red-500 font-bold uppercase">Unavailable</div>
+                                    </div>
+                                )}
+
+                                {/* Custom Option (Now in row 2) */}
+                                {quantityConfig["custom"] ? (
+                                    <button
+                                        onClick={() => {
+                                            setQuantityType('custom');
+                                            if (customWeight < 1000) setCustomWeight(1000);
+                                        }}
+                                        className={`p-4 rounded-xl border-2 text-left transition-all ${quantityType === 'custom'
+                                            ? 'border-[#FC8019] bg-[#FC8019]/5 shadow-md ring-2 ring-[#FC8019]/20'
+                                            : 'border-gray-200 bg-white hover:border-gray-400'
+                                            }`}
+                                    >
+                                        <div className="flex flex-col">
+                                            <span className={`text-lg font-bold ${quantityType === 'custom' ? 'text-[#FC8019]' : 'text-[#1C1C1C]'}`}>Custom</span>
+                                            <span className={`text-sm font-bold ${quantityType === 'custom' ? 'text-[#FC8019]' : 'text-[#60646C]'}`}>1kg+ Only</span>
+                                        </div>
+                                    </button>
+                                ) : (
+                                    <div className="p-4 rounded-xl border-2 border-gray-200 bg-gray-50 text-left opacity-60">
+                                        <div className="text-lg font-bold text-gray-400">Custom</div>
+                                        <div className="text-[10px] text-red-500 font-bold uppercase">Unavailable</div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Custom Weight Input */}
+                            {quantityType === 'custom' && quantityConfig["custom"] && (
+                                <div className="mt-4 space-y-2">
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className="text-[10px] font-extrabold text-[#93959F] uppercase tracking-widest">ENTER WEIGHT (KGS)</label>
+                                        <span className="text-[10px] font-extrabold text-[#FC8019] uppercase tracking-widest">Min: 1kg</span>
+                                    </div>
+                                    <div className="flex group shadow-sm">
+                                        <input
+                                            type="number"
+                                            step="0.05"
+                                            value={customWeight ? customWeight / 1000 : ''}
+                                            onChange={(e) => {
+                                                const valStr = e.target.value;
+                                                if (valStr === '') {
+                                                    setCustomWeight('');
+                                                    return;
+                                                }
+                                                const kgValue = parseFloat(valStr);
+                                                const maxKg = (quantityConfig.customMax || 10000) / 1000;
+
+                                                if (!isNaN(kgValue)) {
+                                                    setCustomWeight(kgValue * 1000);
+                                                }
+                                            }}
+                                            onBlur={() => {
+                                                const minKg = 1;
+                                                const currentKg = customWeight / 1000;
+                                                if (!customWeight || currentKg < minKg) {
+                                                    setCustomWeight(minKg * 1000);
+                                                }
+                                            }}
+                                            className="flex-1 h-14 px-4 bg-gray-50 border-2 border-gray-100 rounded-l-xl focus:border-[#FC8019] focus:bg-white focus:outline-none transition-all font-bold text-xl text-[#1C1C1C]"
+                                            placeholder="Ex: 1.5"
+                                        />
+                                        <div className="h-14 px-6 flex items-center justify-center bg-gray-100 border-2 border-l-0 border-gray-100 rounded-r-xl text-[#1C1C1C] font-extrabold text-lg tracking-tight">
+                                            KG
+                                        </div>
+                                    </div>
+                                    <p className="text-[11px] text-[#2ECC71] font-bold mt-1">
+                                        Total: ₹{Math.round(currentPrice * (customWeight || 0) / 1000)}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
                         {/* Price Display */}
                         <div className="flex items-center gap-4 py-6 border-y border-dashed border-gray-200">
-                            <span className="text-4xl font-extrabold text-[#1C1C1C]">₹{currentPrice}</span>
-                            <span className="text-[#93959F] text-base font-medium">/ per kg</span>
+                            <div>
+                                <div className="text-sm text-[#60646C] mb-1">Price per unit ({weightInKg}kg)</div>
+                                <span className="text-4xl font-extrabold text-[#1C1C1C]">₹{Math.round(currentPrice * weightInKg)}</span>
+                            </div>
                             {selectedCut === 'Cut & Clean' && (
                                 <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">
                                     Includes cutting & cleaning
@@ -184,31 +378,14 @@ const ProductDetails = () => {
                         {/* Cart Total Preview */}
                         <div className="bg-gradient-to-r from-orange-50 to-orange-100/50 rounded-xl p-4 border border-orange-200">
                             <div className="flex justify-between items-center">
-                                <span className="text-sm font-semibold text-[#1C1C1C]">Subtotal ({quantity} kg)</span>
-                                <span className="text-2xl font-extrabold text-[#FC8019]">₹{currentPrice * quantity}</span>
+                                <span className="text-sm font-semibold text-[#1C1C1C]">Subtotal ({totalWeight}kg × {quantity} units)</span>
+                                <span className="text-2xl font-extrabold text-[#FC8019]">₹{Math.round(itemTotal)}</span>
                             </div>
                             <div className="text-xs text-[#60646C] mt-1">
                                 {selectedCut === 'Uncut' ? 'Base price' : 'With cutting & cleaning charges'}
                             </div>
                         </div>
 
-                        {/* Benefits */}
-                        <div className="grid grid-cols-2 gap-4 pt-6">
-                            <div className="flex items-start gap-4 p-4 rounded-2xl border border-gray-100 bg-white shadow-sm">
-                                <Truck className="text-[#1C1C1C] shrink-0" size={24} />
-                                <div>
-                                    <h4 className="font-bold text-sm text-[#1C1C1C]">Fast Delivery</h4>
-                                    <p className="text-xs text-[#93959F] mt-1">Delivery in 90 mins</p>
-                                </div>
-                            </div>
-                            <div className="flex items-start gap-4 p-4 rounded-2xl border border-gray-100 bg-white shadow-sm">
-                                <ShieldCheck className="text-[#2ECC71] shrink-0" size={24} />
-                                <div>
-                                    <h4 className="font-bold text-sm text-[#1C1C1C]">Antibiotic Free</h4>
-                                    <p className="text-xs text-[#93959F] mt-1">100% safe & natural</p>
-                                </div>
-                            </div>
-                        </div>
 
                     </FadeIn>
                 </div>

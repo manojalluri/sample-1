@@ -1,21 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, MapPin, User, Phone, MessageCircle } from 'lucide-react';
+import { MapPin, User, Loader } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import FadeIn from '../components/FadeIn';
 
 const Checkout = () => {
-    const { cart, placeOrder, clearCart, getProductPrice, user } = useShop();
+    const { cart, placeOrder, getProductPrice, user } = useShop();
     const navigate = useNavigate();
+
+    // Redirect if cart is empty, but only if not placing an order
+    useEffect(() => {
+        if (cart.length === 0) {
+            // We allow the component to mount even if empty, but redirecting 
+            // usually happens if user navigates here directly.
+            // However, to prevent "flash" of empty checkout when order is placed (and cart cleared),
+            // we depend on the navigation in handleSubmit happening fast.
+            // Better practice: Don't auto-redirect here if we can avoid it, or use a slightly delayed redirect.
+            // For now, per instructions, we REMOVE aggressive redirects.
+            const timer = setTimeout(() => {
+                if (cart.length === 0) navigate('/cart');
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [cart.length, navigate]);
+
     const [formData, setFormData] = useState({
         name: user?.name || '',
         phone: '',
         address: '',
-        city: 'Hyderabad',
+        city: '',
         pincode: ''
     });
-    const [orderPlaced, setOrderPlaced] = useState(false);
-    const [orderData, setOrderData] = useState(null);
+
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Calculate total with dynamic pricing
     const itemTotal = cart.reduce((sum, item) => {
@@ -31,179 +48,62 @@ const Checkout = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
+    // Robust Unique Order ID Generation
     const generateOrderId = () => {
-        const timestamp = Date.now();
-        const random = Math.floor(1000 + Math.random() * 9000); // 4 digit random
-        return `ORD-${timestamp}-${random}`;
+        const timestamp = Date.now().toString(36).toUpperCase().slice(-4);
+        const random = Math.random().toString(36).toUpperCase().slice(2, 6);
+        return `CF-${timestamp}-${random}`;
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        // Generate unique order ID
-        const orderId = generateOrderId();
+        if (cart.length === 0) return;
 
-        // Prepare order data
-        const orderDetails = {
-            id: orderId,
-            customer: formData,
-            items: cart,
-            itemTotal,
-            deliveryFee,
-            taxesAndCharges,
-            finalAmount,
-            date: new Date().toISOString(),
-            status: 'Pending', // Changed from 'Placed' to 'Pending' for admin workflow
-            userId: user?.id || null,
-            userEmail: user?.email || null
-        };
+        setIsSubmitting(true);
 
-        // Place order (now async with Supabase integration)
-        await placeOrder(orderDetails);
+        try {
+            // Generate unique order ID
+            const orderId = generateOrderId();
 
-        // Store order data for display
-        setOrderData(orderDetails);
-        setOrderPlaced(true);
+            // Prepare order data
+            const orderDetails = {
+                id: orderId,
+                customer: formData,
+                items: cart,
+                itemTotal,
+                deliveryFee,
+                taxesAndCharges,
+                finalAmount,
+                date: new Date().toISOString(),
+                status: 'Confirmed', // Updated status
+                userId: user?.id,
+                userEmail: user?.email || formData.email,
+                paymentStatus: 'COD' // Default per requirements
+            };
+
+            // Place order using Context (saves to DB/Local)
+            // This function creates the record and clears the cart
+            await placeOrder(orderDetails);
+
+            // Navigate to confirmation page
+            navigate(`/order-confirmation/${orderId}`);
+
+        } catch (error) {
+            console.error("Order placement failed:", error);
+            setIsSubmitting(false);
+            alert("Failed to place order. Please try again.");
+        }
     };
 
-    const sendWhatsAppMessage = () => {
-        if (!orderData) return;
-
-        // Build items list for WhatsApp message
-        const itemsList = orderData.items.map(item =>
-            `- ${item.name} (${item.cut}) – ${item.quantity}kg`
-        ).join('\n');
-
-        // Create WhatsApp message
-        const message = `Hi, I have placed an order on Cutora Fishes.
-
-Order ID: ${orderData.id}
-Name: ${orderData.customer.name}
-Phone: ${orderData.customer.phone}
-Address: ${orderData.customer.address}, ${orderData.customer.city} - ${orderData.customer.pincode}
-
-Items:
-${itemsList}
-
-Total Amount: ₹${orderData.finalAmount}
-Payment: Cash on Delivery
-
-Please confirm. Thank you.`;
-
-        // Encode message for URL
-        const encodedMessage = encodeURIComponent(message);
-
-        // WhatsApp business number (replace with your actual number)
-        const whatsappNumber = '919876543210'; // Replace with your WhatsApp business number
-
-        // Create WhatsApp link
-        const whatsappLink = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
-
-        // Open WhatsApp in new tab
-        window.open(whatsappLink, '_blank');
-    };
-
-    if (orderPlaced && orderData) {
+    if (cart.length === 0 && !isSubmitting) {
+        // Show empty state instead of redirecting immediately to avoid hook issues
+        // or just let the useEffect handle it.
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-                <FadeIn className="bg-white p-8 rounded-3xl shadow-lg max-w-lg w-full">
-                    <div className="text-center">
-                        <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <CheckCircle size={40} />
-                        </div>
-                        <h2 className="text-2xl font-bold text-[#1C1C1C] mb-2">Order Placed Successfully!</h2>
-                        <p className="text-[#60646C] mb-6">
-                            Thank you for ordering with Cutora Fishes.
-                        </p>
-                    </div>
-
-                    {/* Order Details Card */}
-                    <div className="bg-orange-50 border border-orange-200 p-6 rounded-xl mb-6">
-                        <h3 className="font-bold text-sm text-[#1C1C1C] mb-4 uppercase tracking-wide">Order Details</h3>
-
-                        <div className="space-y-3 text-sm">
-                            <div className="flex justify-between">
-                                <span className="text-[#60646C]">Order ID:</span>
-                                <span className="font-mono font-bold text-[#FC8019]">{orderData.id}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-[#60646C]">Customer:</span>
-                                <span className="font-semibold text-[#1C1C1C]">{orderData.customer.name}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-[#60646C]">Phone:</span>
-                                <span className="font-semibold text-[#1C1C1C]">{orderData.customer.phone}</span>
-                            </div>
-                            <div className="flex justify-between items-start">
-                                <span className="text-[#60646C]">Delivery to:</span>
-                                <span className="font-semibold text-[#1C1C1C] text-right max-w-[200px]">
-                                    {orderData.customer.address}, {orderData.customer.city} - {orderData.customer.pincode}
-                                </span>
-                            </div>
-                            <div className="pt-3 border-t border-orange-300 flex justify-between">
-                                <span className="text-[#60646C] font-semibold">Total Amount:</span>
-                                <span className="font-extrabold text-xl text-[#FC8019]">₹{orderData.finalAmount}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Items List */}
-                    <div className="bg-gray-50 p-4 rounded-xl mb-6 max-h-48 overflow-y-auto">
-                        <h4 className="font-bold text-xs text-[#93959F] uppercase tracking-wider mb-3">Order Items</h4>
-                        <div className="space-y-2">
-                            {orderData.items.map((item, index) => (
-                                <div key={index} className="flex justify-between text-sm">
-                                    <span className="text-[#1C1C1C]">
-                                        {item.name}
-                                        <span className={`ml-2 text-xs ${item.cut === 'Uncut' ? 'text-blue-600' : 'text-green-600'}`}>
-                                            ({item.cut})
-                                        </span>
-                                    </span>
-                                    <span className="text-[#60646C]">{item.quantity}kg</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Payment Info */}
-                    <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-6">
-                        <p className="text-sm text-blue-900">
-                            <strong>Payment:</strong> Cash on Delivery or UPI upon delivery
-                        </p>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="space-y-3">
-                        <button
-                            onClick={sendWhatsAppMessage}
-                            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold shadow-lg"
-                        >
-                            <MessageCircle size={20} />
-                            Confirm on WhatsApp
-                        </button>
-
-                        <button
-                            onClick={() => navigate('/orders')}
-                            className="w-full px-6 py-3 border-2 border-[#FC8019] text-[#FC8019] rounded-lg hover:bg-orange-50 transition-colors font-semibold"
-                        >
-                            View My Orders
-                        </button>
-
-                        <button
-                            onClick={() => navigate('/menu')}
-                            className="w-full px-6 py-3 text-[#60646C] hover:text-[#FC8019] transition-colors font-semibold"
-                        >
-                            Continue Shopping
-                        </button>
-                    </div>
-                </FadeIn>
+            <div className="min-h-screen bg-[#F0F0F5] flex items-center justify-center">
+                <p className="text-gray-500">Redirecting to cart...</p>
             </div>
         );
-    }
-
-    if (cart.length === 0) {
-        navigate('/cart');
-        return null;
     }
 
     return (
@@ -305,8 +205,19 @@ Please confirm. Thank you.`;
                                     <span>Payment Mode: <strong>Cash on Delivery</strong> or <strong>UPI</strong> upon delivery. <br /> Please keep exact change if possible.</span>
                                 </p>
 
-                                <button type="submit" className="w-full btn-primary py-4 text-lg shadow-lg shadow-orange-500/20">
-                                    PLACE ORDER
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className="w-full btn-primary py-4 text-lg shadow-lg shadow-orange-500/20 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                >
+                                    {isSubmitting ? (
+                                        <>
+                                            <Loader className="animate-spin" size={24} />
+                                            <span>Processing...</span>
+                                        </>
+                                    ) : (
+                                        'PLACE ORDER'
+                                    )}
                                 </button>
                             </div>
 

@@ -56,6 +56,9 @@ const Navbar = () => {
                         <NavLink to="/menu">
                             <span className="group-hover:text-[#FC8019] transition-colors">FRESH CUTS</span>
                         </NavLink>
+                        <NavLink to="/track-order">
+                            <span className="group-hover:text-[#FC8019] transition-colors">TRACK ORDER</span>
+                        </NavLink>
                         {user && (
                             <NavLink to="/orders">
                                 <span className="group-hover:text-[#FC8019] transition-colors">MY ORDERS</span>
@@ -85,12 +88,22 @@ const Navbar = () => {
                         )}
 
                         <Link to="/cart" className="relative flex items-center gap-3 group">
-                            <span className="bg-white border border-gray-200 p-2.5 rounded-full group-hover:bg-[#FC8019] group-hover:border-[#FC8019] transition-all text-[#60646C] group-hover:text-white shadow-sm">
+                            <span className={`border p-2.5 rounded-full transition-all shadow-sm ${cartCount > 0
+                                ? 'bg-orange-50 border-[#FC8019] text-[#FC8019]'
+                                : 'bg-white border-gray-200 text-[#60646C]'} group-hover:bg-[#FC8019] group-hover:border-[#FC8019] group-hover:text-white`}>
                                 <ShoppingBag size={20} className="group-hover:scale-110 transition-transform" />
+                                {cartCount > 0 && (
+                                    <span className="absolute -top-1 -right-1 flex h-4 w-4 md:hidden">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FC8019] opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-4 w-4 bg-[#FC8019] text-[8px] font-bold text-white items-center justify-center">
+                                            {cartCount}
+                                        </span>
+                                    </span>
+                                )}
                             </span>
                             {cartCount > 0 ? (
                                 <div className="hidden md:block">
-                                    <span className="block text-xs font-bold text-[#93959F] uppercase tracking-wider">Total</span>
+                                    <span className="block text-xs font-bold text-[#FC8019] uppercase tracking-wider">Total</span>
                                     <span className="block text-sm font-extrabold text-[#1C1C1C] leading-none">{cartCount} Items</span>
                                 </div>
                             ) : (
